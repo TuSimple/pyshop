@@ -28,7 +28,7 @@ class _Base(object):
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
     __table_args__ = {'mysql_engine': 'InnoDB',
-                      'mysql_charset': 'utf8'
+                      'mysql_charset': 'utf8mb4'
                       }
 
     id =  Column(Integer, primary_key=True)
@@ -101,6 +101,7 @@ class _Base(object):
         return True or raise a :class:`ModelError` Exception
         """
         return True
+
 
 
 class Database(object):

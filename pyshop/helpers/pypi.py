@@ -1,3 +1,4 @@
+#coding=utf-8
 """
 PyPI XML-RPC Client helper
 
@@ -19,14 +20,12 @@ paste ini file.
 
 
 """
-
 try:
     import xmlrpc.client as xmlrpc
 except ImportError:
     import xmlrpclib as xmlrpc
 
 import requests
-
 
 proxy = None
 
@@ -94,3 +93,33 @@ def set_proxy(proxy_url, transport_proxy=None):
         proxy_url,
         transport=RequestsTransport(proxy_url.startswith('https://')),
         allow_none=True)
+
+from multiprocessing.dummy import Pool as ThreadPool
+
+def fetch(args):
+    package_name,release = args
+    release_data = proxy.release_data(package_name, release)
+    release_files = proxy.release_urls(package_name, release)
+    return (release_data,release_files)
+
+def synchronous():
+    package_name="requests"
+    releases = proxy.package_releases(package_name, True)
+    for r in releases:
+        fetch(package_name,r)
+
+def asynchronous(package_name,releases):
+
+    # package_name="requests"
+    # releases = proxy.package_releases(package_name, True)
+    if len(releases) > 0 :
+        pool = ThreadPool(len(releases))
+        # Open the urls in their own threads and return the results
+        results = pool.map(fetch, [(package_name,version) for version in releases])
+        #close the pool and wait for the work to finish
+        pool.close()
+        pool.join()
+    else:
+        results = []
+
+    return results

@@ -14,9 +14,14 @@ from sqlalchemy.sql.expression import func
 
 from pyramid import httpexceptions as exc
 from pyramid.settings import asbool
+from pyramid.threadlocal import global_registry
+from pyramid.response import Response
 
 from pyshop.models import User, Package, Classifier, Release, ReleaseFile
 from pyshop.helpers import pypi
+from pyshop.models import DBSession
+import transaction
+import pyramid_tm
 
 from .base import View
 
@@ -90,10 +95,16 @@ class UploadReleaseFile(View):
 
         pkg = Package.by_name(self.session, params['name'])
         if pkg and pkg.local:
-            auth = [user for user in pkg.owners + pkg.maintainers
-                    if user == self.user]
-            if not auth:
-                raise exc.HTTPForbidden()
+            # auth = [user for user in pkg.owners + pkg.maintainers
+            #         if user == self.user]
+            # if not auth:
+            #     # raise exc.HTTPForbidden()
+            #     return Response(status=403,
+            #         headerlist=[(b'WWW-Authenticate',
+            #                      b'Basic realm="pyshop repository access"'
+            #                      )],
+            #         )
+            pass
         elif not pkg:
             pkg = Package(name=params['name'], local=True)
             pkg.owners.append(self.user)
@@ -176,6 +187,11 @@ class UploadReleaseFile(View):
 
 class Show(View):
 
+    def __init__(self, request):
+
+        super(View,self).__init__(request)
+
+
     def _to_unicode(self, data):
         # xmlrpc use utf8 encoded string
         return dict([(key, val.decode('utf-8')
@@ -186,6 +202,12 @@ class Show(View):
         log.info('Create release %s for package %s',
                  data.get('version'), package.name)
         data = self._to_unicode(data)
+
+        if data.get('description') and len(data.get('description')) >1000:
+            data["description"] = data.get("description")[0:1000]
+        if data.get('summary') and len(data.get('summary')) >1000:
+            data["summary"] = data.get("summary")[0:1000]
+
         release = Release(package=package,
                           summary=data.get('summary'),
                           version=data.get('version'),
@@ -288,13 +310,30 @@ class Show(View):
         pypi_versions = api.package_releases(package_name, True)
         return package_name.decode('utf-8'), pypi_versions
 
-    def render(self):
 
+    # def render(self):
+    #     settings = self.request.registry.settings
+    #
+    #     package_name = self.request.matchdict['package_name']
+    #
+    #     global package_names
+    #     package_names.append(package_name)
+    #
+    #     pkg = Package.by_name(self.session, package_name)
+    #     if pkg is None:
+    #         pkg = Package.by_name(self.session, package_name.replace('-', '_'))
+    #
+    #     return {'package': pkg,
+    #             'whlify': asbool(settings.get('pyshop.mirror.wheelify', '0'))}
+    #
+    def render(self):
         api = pypi.proxy
         settings = self.request.registry.settings
         sanitize = asbool(settings['pyshop.mirror.sanitize'])
 
         package_name = self.request.matchdict['package_name']
+
+
         pkg = Package.by_name(self.session, package_name)
         if pkg is None:
             pkg = Package.by_name(self.session, package_name.replace('-', '_'))
@@ -385,13 +424,26 @@ class Show(View):
                 log.info('No new version to mirror')
                 log.debug('pypi versions: %s', pypi_versions)
                 log.debug('mirrored versions: %s', pkg.versions)
-            for version in pkg_versions:
-                log.info('Mirroring version %s', version)
-                release_data = api.release_data(package_name, version)
+            # for version in pkg_versions:
+            #     log.info('Mirroring version %s', version)
+            #     release_data = api.release_data(package_name, version)
+            #     release = self._create_release(pkg, release_data,
+            #                                    session_users)
+            #
+            #     release_files = api.release_urls(package_name, version)
+            #
+            #     for data in release_files:
+            #         filename = data['filename'].decode('utf-8')
+            #         rf = ReleaseFile.by_filename(self.session, release,
+            #                                      filename)
+            #         if not rf:
+            #             rf = self._create_release_file(release, data)
+
+            release_data_files = pypi.asynchronous(package_name,pkg_versions)
+            for d_f in release_data_files:
+                release_data,release_files = d_f
                 release = self._create_release(pkg, release_data,
                                                session_users)
-
-                release_files = api.release_urls(package_name, version)
 
                 for data in release_files:
                     filename = data['filename'].decode('utf-8')
@@ -405,3 +457,5 @@ class Show(View):
             log.info('package %s mirrored' % package_name)
         return {'package': pkg,
                 'whlify': asbool(settings.get('pyshop.mirror.wheelify', '0'))}
+
+

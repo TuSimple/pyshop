@@ -1,3 +1,4 @@
+#coding=utf-8
 """
 Pyramid security concern.
 
@@ -35,8 +36,9 @@ class GroupFinder(object):
         :return: list of groups name.
         :rtype: list of unicode
         """
-        if login in self._users:
-            return self._users[login]
+        #该缓冲会操作，运行中动态增加组异常。组信息不能更新。
+        # if login in self._users:
+        #     return self._users[login]
 
         user = User.by_login(DBSession(), login)
         if user:

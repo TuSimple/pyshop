@@ -2,6 +2,16 @@
 
 {% block body %}
 
+{% set is_admin = False %}
+
+{% for group in pyshop.user.groups %}
+    {{group.name}}
+    {% if group.name == "admin" %}
+        {%trans%}111 {%endtrans%}
+        {% set is_admin = True %}
+    {% endif %}
+{% endfor %}
+
 
 {% block maintitle %}
 <nav class="navbar navbar-default" role="navigation">

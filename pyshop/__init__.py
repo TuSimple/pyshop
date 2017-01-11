@@ -5,6 +5,7 @@ PyShop Web Application.
 import sys
 from pyramid.config import Configurator
 from pyramid.authorization import ACLAuthorizationPolicy as ACLPolicy
+from pyramid.threadlocal import global_registry
 
 from .security import groupfinder, RootFactory
 
@@ -29,8 +30,10 @@ def main(global_config, **settings):
     # after the template has been rendered
     create_engine(settings, scoped=True)
 
+    #认证策略
     authn_policy = RouteSwitchAuthPolicy(secret=settings['pyshop.cookie_key'],
                                          callback=groupfinder)
+    #授权策略
     authz_policy = ACLPolicy()
     route_prefix = settings.get('pyshop.route_prefix')
 
@@ -39,7 +42,10 @@ def main(global_config, **settings):
                           route_prefix=route_prefix,
                           locale_negotiator=locale_negotiator,
                           authentication_policy=authn_policy,
-                          authorization_policy=authz_policy)
+                          authorization_policy=authz_policy,
+                          )
     config.end()
+
+    global_registry.settings = settings
 
     return config.make_wsgi_app()

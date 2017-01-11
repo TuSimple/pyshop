@@ -39,6 +39,7 @@ crypt = cryptacular.bcrypt.BCRYPTPasswordManager()
 
 re_email = re.compile(r'^[^@]+@[a-z0-9]+[-.a-z0-9]+\.[a-z]+$', re.I)
 
+# Base = Database.register('pyshop')
 Base = Database.register('pyshop')
 
 
@@ -91,7 +92,7 @@ def dispose_engine():
 
 class Permission(Base):
     """Describe a user permission"""
-    name = Column(Unicode(255), nullable=False, unique=True)
+    name = Column(Unicode(100), nullable=False, unique=True)
 
 
 group__permission = Table('group__permission', Base.metadata,
@@ -105,7 +106,7 @@ class Group(Base):
     """
     Describe user's groups.
     """
-    name = Column(Unicode(255), nullable=False, unique=True)
+    name = Column(Unicode(100), nullable=False, unique=True)
     permissions = relationship(Permission, secondary=group__permission,
                                lazy='select')
 
@@ -144,11 +145,11 @@ class User(Base):
         return (Index('idx_%s_login_local' % cls.__tablename__,
                       'login', 'local', unique=True),
                 {'mysql_engine': 'InnoDB',
-                 'mysql_charset': 'utf8',
+                 'mysql_charset': 'utf8mb4',
                  }
                 )
 
-    login = Column(Unicode(255), nullable=False)
+    login = Column(Unicode(100), nullable=False)
     _password = Column('password', Unicode(60), nullable=True)
 
     firstname = Column(Unicode(255), nullable=True)
@@ -199,7 +200,9 @@ class User(Base):
                                 (cls.local == local),)
                          )
         # XXX it's appear that this is not case sensitive !
-        return user if user and user.login == login else None
+        # return user if user and user.login == login else None
+        return user if user else None
+
 
     @classmethod
     def by_credentials(cls, session, login, password):
@@ -328,12 +331,49 @@ class User(Base):
                     settings['pyshop.ldap.last_name_attr']][0]
                 user_ldap.email = attrs[
                     settings['pyshop.ldap.email_attr']][0]
-                for groupname in ["developer", "installer"]:
+                # for groupname in ["developer", "installer"]:
+                for groupname in ["installer"]:
                     user_ldap.groups.append(Group.by_name(session, groupname))
                 if user_ldap.validate(session):
                     session.add(user_ldap)
                     log.debug('User "%s" added', login)
-                    transaction.commit()
+                    # transaction.commit()
+
+            server.simple_bind_s(settings['pyshop.ldap.account'],
+                                     settings['pyshop.ldap.password'])
+
+            group_dn = settings['pyshop.ldap.group.dn']
+            _g_filter = group_filter = settings['pyshop.ldap.group.search_filter'].format(login)
+            groups = server.search_s(group_dn,ldap.SCOPE_SUBTREE,_g_filter)
+
+            user_groups = []
+            for group in user_ldap.groups:
+                user_groups.append(group.name)
+
+            db_groups = []
+            for (dn,_attr) in groups:
+                group_name = _attr["cn"][0]
+                db_groups.append(group_name)
+
+            if "installer" not in user_groups:
+                user_ldap.groups.append(Group.by_name(session,"installer"))
+
+            user_groups.remove("installer")
+
+            for group_name in db_groups:
+                if group_name not in user_groups:
+                    user_ldap.groups.append(Group.by_name(session,group_name))
+
+            for group_name in user_groups:
+                if group_name not in db_groups:
+                    for group in user_ldap.groups:
+                        if group.name == group_name:
+                            user_ldap.groups.remove(group)
+                            break
+
+            session.add(user_ldap)
+            transaction.commit()
+
             # its OK
             return user_ldap
         except ldap.NO_SUCH_OBJECT:
@@ -407,11 +447,11 @@ class Classifier(Base):
         return (Index('idx_%s_category_name' % cls.__tablename__,
                       'category', 'name', unique=True),
                 {'mysql_engine': 'InnoDB',
-                 'mysql_charset': 'utf8',
+                 'mysql_charset': 'utf8mb4',
                  }
                 )
 
-    name = Column(Unicode(255), nullable=False, unique=True)
+    name = Column(Unicode(100), nullable=False, unique=True)
     parent_id = Column(Integer, ForeignKey(u'classifier.id'))
     category = Column(Unicode(80), nullable=False)
 
@@ -490,7 +530,7 @@ class Package(Base):
     """
 
     update_at = Column(DateTime, default=func.now())
-    name = Column(Unicode(200), unique=True)
+    name = Column(Unicode(100), unique=True)
     local = Column(Boolean, nullable=False, default=False)
     owners = relationship(User, secondary=package__owner,
                           backref='owned_packages')
@@ -664,7 +704,7 @@ class Release(Base):
         return (Index('idx_%s_package_id_version' % cls.__tablename__,
                       'package_id', 'version', unique=True),
                 {'mysql_engine': 'InnoDB',
-                 'mysql_charset': 'utf8',
+                 'mysql_charset': 'utf8mb4',
                  }
                 )
 
@@ -813,7 +853,7 @@ class ReleaseFile(Base):
 
     release_id = Column(Integer, ForeignKey(Release.id),
                         nullable=False)
-    filename = Column(Unicode(200), unique=True, nullable=False)
+    filename = Column(Unicode(180), unique=True, nullable=False)
     md5_digest = Column(Unicode(50))
     size = Column(Integer)
     package_type = Column(Enum(u'sdist', u'bdist_egg', u'bdist_msi',

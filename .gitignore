@@ -39,3 +39,4 @@ venv*
 # project files
 /repository/*
 *.db
+.idea

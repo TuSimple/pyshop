@@ -1,6 +1,5 @@
 {% extends "/pyshop/layout.html" %}
 
-
 {% block header %}
     <script  type="text/javascript" src="{{ static_url('pyshop:static/js/bootstrap3-typeahead.js') }}"></script>
 {% endblock %}
@@ -62,6 +61,8 @@
 </thead>
 <tbody>
 
+
+
     {% for pkg in packages %}
         <tr>
             <td>
@@ -84,6 +85,19 @@
                 </a>
             </td>
         </tr>
+        {% set is_admin = False %}
+
+        {% for group in pyshop.user.groups %}
+            {{group.name}}
+            {% if group.name == "admin" %}
+                {%trans%}111 {%endtrans%}
+                {% set is_admin = True %}
+            {% endif %}
+            {{ is_admin }}
+        {% endfor %}
+
+        {{ is_admin }}
+
     {% endfor %}
 </tbody>
 </table>
