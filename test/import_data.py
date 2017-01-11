@@ -16,7 +16,7 @@ if __name__ == "__main__":
     session = SessionFactory.get("pyshop")()
 
     settings = {
-        "sqlalchemy.url":"sqlite:///./main.db"
+        "sqlalchemy.url":"sqlite:///./pyshop.db"
     }
 
     create_engine("pyshop",settings)
